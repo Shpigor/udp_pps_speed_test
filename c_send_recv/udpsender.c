@@ -67,7 +67,7 @@ int main(int argc, const char *argv[])
 {
 	int packets_in_buf = 1024;
 	const char *payload = (const char[32]){0};
-	int payload_sz = 32;
+	int payload_sz = 1024;
 
 	if (argc == 1) {
 		FATAL("Usage: %s [target ip:port] [target ...]", argv[0]);

@@ -19,8 +19,8 @@ import (
 import "C"
 
 const (
-	bb_payload_sz = 42
-	payload_sz    = 32
+	bb_payload_sz = 1048
+	payload_sz    = 1024
 	chunk_sz      = 1024
 	local_port    = 5674
 )
@@ -226,18 +226,16 @@ func listenBatch(srcUdpAddr *net.UDPAddr) {
 	}()
 	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
 	chk(err)
-	err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, payload_sz)
-	chk(err)
-	err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+	err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF|syscall.SO_REUSEADDR, payload_sz)
 	chk(err)
 	err = syscall.Bind(fd, UDPAddrToSockaddr(srcUdpAddr))
 	chk(err)
-	bb := make([]byte, 32*1024)
+	bb := make([]byte, 1048)
 	for {
 		n, _, _, _, err := syscall.Recvmsg(fd, bb, nil, syscall.MSG_WAITFORONE)
 		chk(err)
-		if n <= 32*1024 {
-			atomic.AddInt32(&packets, int32(n/32))
+		if n <= 1048 {
+			atomic.AddInt32(&packets, int32(n/1024))
 			atomic.AddInt32(&bytes, int32(n))
 		} else {
 			log.Print("Got more bytes rather than 32!!!")
@@ -270,7 +268,7 @@ func listenEvio(srcUdpAddr *net.UDPAddr) {
 		return
 	}
 
-	if err := evio.Serve(events, "udp://192.168.7.62:4321?reuseport=true", "udp://172.17.0.1:4321?reuseport=true"); err != nil {
+	if err := evio.Serve(events, "udp://192.168.7.30:4321?reuseport=true", "udp://127.0.0.1:4321?reuseport=true"); err != nil {
 	}
 }
 
