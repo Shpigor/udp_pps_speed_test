@@ -2,6 +2,8 @@ package main
 
 import (
 	"github.com/mailru/easygo/netpoll"
+	"github.com/matishsiao/go_reuseport"
+	"github.com/tidwall/evio"
 	"log"
 	"net"
 	"os"
@@ -11,8 +13,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-	//"github.com/panjf2000/ants"
-	"github.com/tidwall/evio"
 )
 
 // #include <sys/syscall.h>
@@ -44,6 +44,8 @@ func main() {
 	switch os.Args[1] {
 	case "write":
 		write(addr, iter)
+	case "writeTo":
+		writeTo(os.Args[3], int32(iter))
 	case "writeToUDP":
 		writeToUDP(addr, iter)
 	case "sendTo":
@@ -94,6 +96,32 @@ func write(addr *net.UDPAddr, i int) {
 	for ; i > 0; i-- {
 		_, err := conn.Write(payload)
 		chk(err)
+	}
+}
+
+func writeTo(addrStr string, i int32) {
+	log.Printf("Start `write` test with %d iteration\n", i)
+	addr, err := net.ResolveUDPAddr("", addrStr)
+	chk(err)
+	log.Printf("addrStr: %s", addrStr)
+	conn, err := reuseport.NewReusableUDPPortConn("udp", addrStr)
+	chk(err)
+
+	ch := make(chan []byte, 1000)
+	go func(chan []byte) {
+		for pl := range ch {
+			_, err := conn.WriteTo(pl, addr)
+			chk(err)
+		}
+	}(ch)
+
+	for g := 0; g < 4; g++ {
+		go func() {
+			payload := make([]byte, payload_sz)
+			for ; atomic.LoadInt32(&i) > 0; atomic.AddInt32(&i, -1) {
+				ch <- payload
+			}
+		}()
 	}
 }
 
@@ -197,8 +225,8 @@ func listenFDPoll(srcUdpAddr *net.UDPAddr) {
 	}()
 
 	listConn, listErr := net.ListenUDP("udp", srcUdpAddr)
-	listErr = listConn.SetReadBuffer(bb_payload_sz)
 	chk(listErr)
+	listErr = listConn.SetReadBuffer(bb_payload_sz)
 	poll, pollErr := netpoll.New(nil)
 	chk(pollErr)
 	desc := netpoll.Must(netpoll.HandleRead(listConn))
